@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 
-# Ito ang kulang na system libraries para sa OpenCV
+# System libraries para sa OpenCV
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
@@ -13,4 +13,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Gumamit ng $PORT (Render mag-a-assign nito)
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
