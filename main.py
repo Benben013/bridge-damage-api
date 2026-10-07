@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
@@ -36,6 +37,18 @@ CLASS_NAME_MAPPING = {
     "exposed rebar": "Exposed Reinforcement",
     "holes": "Holes",
 }
+
+
+# ==========================================
+# ROOT ROUTE (para sa Render health check)
+# ==========================================
+@app.get("/")
+async def root():
+    return {
+        "status": "ok",
+        "message": "Bridge Damage Detection API is running",
+        "model": MODEL_PATH
+    }
 
 
 # Health check
@@ -112,12 +125,14 @@ async def predict(file: UploadFile = File(...)):
     }
 
 
-# Run locally
+# Run locally / Render
 if __name__ == "__main__":
     import uvicorn
+
+    port = int(os.environ.get("PORT", 8000))
 
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=8000
+        port=port
     )
