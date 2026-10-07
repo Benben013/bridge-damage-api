@@ -3,10 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
 from PIL import Image
 import io
-import os
 
 app = FastAPI(title="Bridge Damage Detection API")
 
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -14,32 +14,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ⭐ AUTO-DETECT MODEL PATH
-POSSIBLE_PATHS = [
-    "runs/train/bridge_damage/weights/best.pt",
-    "runs/detect/runs/train/bridge_damage/weights/best.pt",
-    "runs/detect/train/bridge_damage/weights/best.pt",
-]
-
-MODEL_PATH = None
-for path in POSSIBLE_PATHS:
-    if os.path.exists(path):
-        MODEL_PATH = path
-        print(f"✓ Model found: {path}")
-        break
-
-if MODEL_PATH is None:
-    raise FileNotFoundError(
-        "Hindi mahanap ang best.pt. I-check ang runs/ folder."
-    )
+# Load trained YOLO model
+MODEL_PATH = "best.pt"
 
 model = YOLO(MODEL_PATH)
 
-# ⭐ THRESHOLDS
+print(f"✓ Model loaded: {MODEL_PATH}")
+
+
+# Detection thresholds
 CONFIDENCE_THRESHOLD = 0.3
 IOU_THRESHOLD = 0.5
 
-# ⭐ CLASS NAME MAPPING — GYU-DET (6 classes)
+
+# Class name mapping
 CLASS_NAME_MAPPING = {
     "cracks": "Cracks",
     "spalling": "Spalling",
@@ -49,17 +37,30 @@ CLASS_NAME_MAPPING = {
     "holes": "Holes",
 }
 
+
+# Health check
 @app.get("/health")
 async def health():
-    return {"status": "ok", "model": MODEL_PATH}
+    return {
+        "status": "ok",
+        "model": MODEL_PATH
+    }
 
+
+# Prediction endpoint
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
+
+    # Read uploaded image
     image_bytes = await file.read()
+
+    # Convert image bytes to PIL image
     image = Image.open(io.BytesIO(image_bytes))
 
+    # Get image dimensions
     img_width, img_height = image.size
 
+    # Run YOLO detection
     results = model(
         image,
         conf=CONFIDENCE_THRESHOLD,
@@ -67,21 +68,42 @@ async def predict(file: UploadFile = File(...)):
     )
 
     detections = []
+
+    # Process detection results
     for result in results:
+
         for box in result.boxes:
+
+            # Get class ID
             class_id = int(box.cls[0])
+
+            # Get original class name
             original_name = result.names[class_id]
-            display_name = CLASS_NAME_MAPPING.get(original_name, original_name)
+
+            # Convert to display name
+            display_name = CLASS_NAME_MAPPING.get(
+                original_name,
+                original_name
+            )
+
+            # Get confidence
             confidence = float(box.conf[0])
+
+            # Get bounding box
             bbox = box.xyxy[0].tolist()
 
+            # Add detection
             detections.append({
                 "class": display_name,
                 "original_class": original_name,
                 "confidence": round(confidence, 4),
-                "bbox": [round(v, 2) for v in bbox]
+                "bbox": [
+                    round(v, 2)
+                    for v in bbox
+                ]
             })
 
+    # Return result
     return {
         "detections": detections,
         "total_objects": len(detections),
@@ -89,6 +111,13 @@ async def predict(file: UploadFile = File(...)):
         "image_height": img_height
     }
 
+
+# Run locally
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8000
+    )
